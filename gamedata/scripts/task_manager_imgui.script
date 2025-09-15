@@ -1,0 +1,89 @@
+TASK_MANAGER_MENU = "Task Manager"
+task_manager_window_visible = false
+
+-- Helper function to get all active tasks
+local function get_active_tasks()
+    local tm = task_manager.get_task_manager()
+    local tasks = {}
+    
+    if not tm then return tasks end
+    
+    for task_id, task in pairs(tm.task_info) do
+        if task and task.t then
+            tasks[task_id] = task
+        end
+    end
+    
+    return tasks
+end
+
+function get_task_name(task_id)
+	local title_functor	= task_manager.task_ini:r_string_ex(task_id,"title_functor") or "condlist"
+	local title = game.translate_string(task_manager.task_ini:r_string_ex(task_id, "title")) or "error"
+	local current_title = db.actor and task_functor[title_functor](task_id, "title", title, nil)
+	return current_title
+end
+
+function imgui_on_render(name)
+    if name == "Main" then
+        if task_manager_window_visible then
+            local expanded, status = ImGui.Begin(TASK_MANAGER_MENU, task_manager_window_visible, ImGuiWindowFlags.None)
+            task_manager_window_visible = status
+            
+            if expanded then
+                -- Create table headers
+                if ImGui.BeginTable("TasksTable", 4, 3, vector2(0,0), 0) then -- 3 = Borders(1) + RowBg(2)
+                    ImGui.TableSetupColumn("Task", 2, 0, 0) -- 2 = WidthFixed
+                    ImGui.TableSetupColumn("Complete", 2, 0, 0) -- 2 = WidthFixed
+                    ImGui.TableSetupColumn("Fail", 2, 0, 0) -- 2 = WidthFixed
+                    ImGui.TableSetupColumn("Cancel", 2, 0, 0) -- 2 = WidthFixed
+                    ImGui.TableHeadersRow()
+                    
+                    -- Get all active tasks
+                    local tasks = get_active_tasks()
+                    
+                    -- Display tasks and controls
+                    for task_id, task in pairs(tasks) do
+                        ImGui.TableNextRow()
+                        
+                        -- Task ID column
+                        ImGui.TableNextColumn()
+                        ImGui.Text(get_task_name(task_id))
+                        
+                        -- Complete button column
+                        ImGui.TableNextColumn()
+                        if ImGui.SmallButton("Complete##" .. task_id) then
+                            task_manager.get_task_manager():set_task_completed(task_id)
+                        end
+                        
+                        -- Fail button column
+                        ImGui.TableNextColumn()
+                        if ImGui.SmallButton("Fail##" .. task_id) then
+                            task_manager.get_task_manager():set_task_failed(task_id)
+                        end
+                        
+                        -- Cancel button column
+                        ImGui.TableNextColumn()
+                        if ImGui.SmallButton("Cancel##" .. task_id) then
+                            task_manager.get_task_manager():set_task_cancelled(task_id)
+                        end
+                    end
+                    
+                    ImGui.EndTable()
+                end
+            end
+            
+            ImGui.End()
+        end
+    elseif name == "MenuBar" then
+        if ImGui.BeginMenu(TASK_MANAGER_MENU) then
+            clicked, task_manager_window_visible = ImGui.MenuItem("Open", nil, task_manager_window_visible, true)
+            SendScriptCallback("imgui_on_render", TASK_MANAGER_MENU)
+            ImGui.EndMenu()
+        end
+    end
+end
+
+function on_game_start()
+    RegisterScriptCallback("imgui_on_render", imgui_on_render)
+end
