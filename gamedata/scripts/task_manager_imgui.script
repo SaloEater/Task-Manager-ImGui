@@ -5,23 +5,80 @@ task_manager_window_visible = false
 local function get_active_tasks()
     local tm = task_manager.get_task_manager()
     local tasks = {}
-    
+
     if not tm then return tasks end
-    
+
     for task_id, task in pairs(tm.task_info) do
         if task and task.t then
             tasks[task_id] = task
         end
     end
-    
+
     return tasks
 end
 
+local win1251_to_utf8_map = {
+    [128]="\xD0\x82", [129]="\xD0\x83", [130]="\xE2\x80\x9A", [131]="\xD1\x93",
+    [132]="\xE2\x80\x9E", [133]="\xE2\x80\xA6", [134]="\xE2\x80\xA0", [135]="\xE2\x80\xA1",
+    [136]="\xE2\x82\xAC", [137]="\xE2\x80\xB0", [138]="\xD0\x89", [139]="\xE2\x80\xB9",
+    [140]="\xD0\x8A", [141]="\xD0\x8C", [142]="\xD0\x8B", [143]="\xD0\x8F",
+    [144]="\xD1\x92", [145]="\xE2\x80\x98", [146]="\xE2\x80\x99", [147]="\xE2\x80\x9C",
+    [148]="\xE2\x80\x9D", [149]="\xE2\x80\xA2", [150]="\xE2\x80\x93", [151]="\xE2\x80\x94",
+    [152]="\xC2\x98", [153]="\xE2\x84\xA2", [154]="\xD1\x99", [155]="\xE2\x80\xBA",
+    [156]="\xD1\x9A", [157]="\xD1\x9C", [158]="\xD1\x9B", [159]="\xD1\x9F",
+    [160]="\xC2\xA0", [161]="\xD0\x8E", [162]="\xD1\x9E", [163]="\xD0\x88",
+    [164]="\xC2\xA4", [165]="\xD2\x90", [166]="\xC2\xA6", [167]="\xC2\xA7",
+    [168]="\xD0\x81", [169]="\xC2\xA9", [170]="\xD0\x84", [171]="\xC2\xAB",
+    [172]="\xC2\xAC", [173]="\xC2\xAD", [174]="\xC2\xAE", [175]="\xD0\x87",
+    [176]="\xC2\xB0", [177]="\xC2\xB1", [178]="\xD0\x86", [179]="\xD1\x96",
+    [180]="\xD2\x91", [181]="\xC2\xB5", [182]="\xC2\xB6", [183]="\xC2\xB7",
+    [184]="\xD1\x91", [185]="\xE2\x84\x96", [186]="\xD0\x85", [187]="\xC2\xBB",
+    [188]="\xD1\x97", [189]="\xD1\x94", [190]="\xD1\x98", [191]="\xD0\x8D",
+    [192]="\xD0\x90", [193]="\xD0\x91", [194]="\xD0\x92", [195]="\xD0\x93",
+    [196]="\xD0\x94", [197]="\xD0\x95", [198]="\xD0\x96", [199]="\xD0\x97",
+    [200]="\xD0\x98", [201]="\xD0\x99", [202]="\xD0\x9A", [203]="\xD0\x9B",
+    [204]="\xD0\x9C", [205]="\xD0\x9D", [206]="\xD0\x9E", [207]="\xD0\x9F",
+    [208]="\xD0\xA0", [209]="\xD0\xA1", [210]="\xD0\xA2", [211]="\xD0\xA3",
+    [212]="\xD0\xA4", [213]="\xD0\xA5", [214]="\xD0\xA6", [215]="\xD0\xA7",
+    [216]="\xD0\xA8", [217]="\xD0\xA9", [218]="\xD0\xAA", [219]="\xD0\xAB",
+    [220]="\xD0\xAC", [221]="\xD0\xAD", [222]="\xD0\xAE", [223]="\xD0\xAF",
+    [224]="\xD0\xB0", [225]="\xD0\xB1", [226]="\xD0\xB2", [227]="\xD0\xB3",
+    [228]="\xD0\xB4", [229]="\xD0\xB5", [230]="\xD0\xB6", [231]="\xD0\xB7",
+    [232]="\xD0\xB8", [233]="\xD0\xB9", [234]="\xD0\xBA", [235]="\xD0\xBB",
+    [236]="\xD0\xBC", [237]="\xD0\xBD", [238]="\xD0\xBE", [239]="\xD0\xBF",
+    [240]="\xD1\x80", [241]="\xD1\x81", [242]="\xD1\x82", [243]="\xD1\x83",
+    [244]="\xD1\x84", [245]="\xD1\x85", [246]="\xD1\x86", [247]="\xD1\x87",
+    [248]="\xD1\x88", [249]="\xD1\x89", [250]="\xD1\x8A", [251]="\xD1\x8B",
+    [252]="\xD1\x8C", [253]="\xD1\x8D", [254]="\xD1\x8E", [255]="\xD1\x8F"
+}
+
+local function win1251_to_utf8(str)
+    local result = ""
+    local has_error = false
+    for i = 1, #str do
+        local c = str:byte(i)
+        if c >= 128 then
+            local utf8_char = win1251_to_utf8_map[c]
+            if not utf8_char then has_error = true end
+            result = result .. (utf8_char or "?")
+        else
+            result = result .. string.char(c)
+        end
+    end
+
+    if has_error then
+        printf("Warning: win1251_to_utf8 encountered unmapped characters: %s", str)
+    end
+
+    return result
+end
+
+-- Update the get_task_name function to use the conversion
 function get_task_name(task_id)
-	local title_functor	= task_manager.task_ini:r_string_ex(task_id,"title_functor") or "condlist"
-	local title = game.translate_string(task_manager.task_ini:r_string_ex(task_id, "title")) or "error"
-	local current_title = db.actor and task_functor[title_functor](task_id, "title", title, nil)
-	return current_title
+    local title_functor = task_manager.task_ini:r_string_ex(task_id,"title_functor") or "condlist"
+    local title = game.translate_string(task_manager.task_ini:r_string_ex(task_id, "title")) or "error"
+    local current_title = db.actor and task_functor[title_functor](task_id, "title", title, nil)
+    return win1251_to_utf8(current_title)
 end
 
 function imgui_on_render(name)
@@ -29,7 +86,7 @@ function imgui_on_render(name)
         if task_manager_window_visible then
             local expanded, status = ImGui.Begin(TASK_MANAGER_MENU, task_manager_window_visible, ImGuiWindowFlags.None)
             task_manager_window_visible = status
-            
+
             if expanded then
                 -- Create table headers
                 if ImGui.BeginTable("TasksTable", 4, 3, vector2(0,0), 0) then -- 3 = Borders(1) + RowBg(2)
@@ -38,41 +95,41 @@ function imgui_on_render(name)
                     ImGui.TableSetupColumn("Fail", 2, 0, 0) -- 2 = WidthFixed
                     ImGui.TableSetupColumn("Cancel", 2, 0, 0) -- 2 = WidthFixed
                     ImGui.TableHeadersRow()
-                    
+
                     -- Get all active tasks
                     local tasks = get_active_tasks()
-                    
+
                     -- Display tasks and controls
                     for task_id, task in pairs(tasks) do
                         ImGui.TableNextRow()
-                        
+
                         -- Task ID column
                         ImGui.TableNextColumn()
                         ImGui.Text(get_task_name(task_id))
-                        
+
                         -- Complete button column
                         ImGui.TableNextColumn()
                         if ImGui.SmallButton("Complete##" .. task_id) then
                             task_manager.get_task_manager():set_task_completed(task_id)
                         end
-                        
+
                         -- Fail button column
                         ImGui.TableNextColumn()
                         if ImGui.SmallButton("Fail##" .. task_id) then
                             task_manager.get_task_manager():set_task_failed(task_id)
                         end
-                        
+
                         -- Cancel button column
                         ImGui.TableNextColumn()
                         if ImGui.SmallButton("Cancel##" .. task_id) then
                             task_manager.get_task_manager():set_task_cancelled(task_id)
                         end
                     end
-                    
+
                     ImGui.EndTable()
                 end
             end
-            
+
             ImGui.End()
         end
     elseif name == "MenuBar" then
