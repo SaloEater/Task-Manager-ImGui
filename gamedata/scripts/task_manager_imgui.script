@@ -81,8 +81,15 @@ function get_task_name(task_id)
     return win1251_to_utf8(current_title)
 end
 
-function imgui_on_render(name)
-    if name == "Main" then
+function on_game_start()
+    -- Register Task Manager toggle in Mods menu
+    ImGui.Groups.Mods.Widget(function()
+        local clicked
+        clicked, task_manager_window_visible = ImGui.MenuItem(TASK_MANAGER_MENU, nil, task_manager_window_visible, true)
+    end)
+
+    -- Register main window rendering in Main group
+    ImGui.Groups.Main.Widget(function()
         if task_manager_window_visible then
             local expanded, status = ImGui.Begin(TASK_MANAGER_MENU, task_manager_window_visible, ImGuiWindowFlags.None)
             task_manager_window_visible = status
@@ -132,15 +139,5 @@ function imgui_on_render(name)
 
             ImGui.End()
         end
-    elseif name == "MenuBar" then
-        if ImGui.BeginMenu(TASK_MANAGER_MENU) then
-            clicked, task_manager_window_visible = ImGui.MenuItem("Open", nil, task_manager_window_visible, true)
-            SendScriptCallback("imgui_on_render", TASK_MANAGER_MENU)
-            ImGui.EndMenu()
-        end
-    end
-end
-
-function on_game_start()
-    RegisterScriptCallback("imgui_on_render", imgui_on_render)
+    end)
 end
